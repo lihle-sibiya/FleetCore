@@ -1,8 +1,10 @@
+
+//companiesRoute.js
 "use strict";
 
 const router = require('express').Router();
 const { Company, Vehicle, Driver } = require('../models');
-const { protect } = require('../middleware/auth');
+const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 

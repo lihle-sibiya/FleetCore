@@ -24,11 +24,14 @@
     "mongoose": "^9.6.2",
     "multer": "^2.1.1",
     "multer-s3": "^3.0.1",
+    "mysql2": "^3.22.3",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.7",
-    "pdfkit": "^0.18.0"
+    "pdfkit": "^0.18.0",
+    "sequelize": "^6.37.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
-  }
+  },
+  "keywords": []
 }

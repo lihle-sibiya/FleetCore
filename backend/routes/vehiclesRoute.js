@@ -1,8 +1,10 @@
+//vehiclesRoute.js
+
 "use strict";
 
 const router = require('express').Router();
 const { Vehicle, Reminder } = require('../models');
-const { protect } = require('../middleware/auth');
+const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
