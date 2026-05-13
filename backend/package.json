@@ -1,7 +1,7 @@
 {
   "name": "fleetcore-backend",
   "version": "1.0.0",
-  "description": "Fleet management & invoicing API",
+  "description": "FleetCore management: Licensing & Registration Services API",
   "license": "ISC",
   "author": "Thembelihle Sibiya",
   "type": "commonjs",

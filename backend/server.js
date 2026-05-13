@@ -44,7 +44,7 @@ connectDB().then(() => {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`🚀 FleetCore API running on port ${PORT}`));
 
-  const { startReminderJob } = require('./utils/reminderCron');
+  const { startReminderJob } = require('./jobs/reminderCronJob');
   startReminderJob();
 }).catch((err) => {
   console.error('Database connection error:', err);
