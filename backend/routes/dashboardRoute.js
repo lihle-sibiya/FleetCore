@@ -1,85 +1,97 @@
-//dashboardRoute.js
+'use strict';
 
-"use strict";
-
-const router = require('express').Router();
-const { Invoice, Company, Vehicle } = require('../models');
-const { protect } = require('../middleware/authMiddleware');
+const router        = require('express').Router();
+const { Op, fn, col, literal } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { Invoice, Application, Vehicle, Dealership, PrivateCustomer, Payment } = require('../models');
+const { protect }   = require('../middleware/authMiddleware');
 
 router.use(protect);
 
+// GET /api/dashboard/summary
 router.get('/summary', async (req, res) => {
   try {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const now           = new Date();
+    const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLast   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLast     = new Date(now.getFullYear(), now.getMonth(), 0);
 
     const [
-      totalCompanies, totalVehicles, totalInvoices,
-      revenueThisMonth, revenueLastMonth,
-      outstanding, overdueCount,
-      recentInvoices, monthlyRevenue,
+      totalDealerships,
+      totalVehicles,
+      totalApplications,
+      revenueThisMonth,
+      revenueLastMonth,
+      outstandingAmount,
+      overdueCount,
+      recentInvoices,
+      monthlyRevenue,
     ] = await Promise.all([
-      Company.countDocuments({ isDeleted: false }),
-      Vehicle.countDocuments(),
-      Invoice.countDocuments(),
 
-      Invoice.aggregate([
-        { $match: { status: 'paid', paidAt: { $gte: startOfMonth } } },
-        { $group: { _id: null, total: { $sum: '$total' } } },
-      ]),
-      Invoice.aggregate([
-        { $match: { status: 'paid', paidAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } },
-        { $group: { _id: null, total: { $sum: '$total' } } },
-      ]),
-      Invoice.aggregate([
-        { $match: { status: { $in: ['issued', 'overdue'] } } },
-        { $group: { _id: null, total: { $sum: '$total' } } },
-      ]),
-      Invoice.countDocuments({ status: 'overdue' }),
+      Dealership.count(),
+      Vehicle.count(),
+      Application.count(),
 
-      Invoice.find()
-        .populate('companyId', 'name')
-        .populate('vehicleId', 'registrationNumber')
-        .sort({ createdAt: -1 })
-        .limit(6)
-        .select('invoiceNumber status total createdAt companyId vehicleId serviceType'),
+      // Revenue this month (paid invoices)
+      Payment.sum('amount', {
+        where: { paid_at: { [Op.gte]: startOfMonth } },
+      }),
 
-      // 6-month revenue chart data
-      Invoice.aggregate([
-        {
-          $match: {
-            status: 'paid',
-            paidAt: { $gte: new Date(new Date().setMonth(now.getMonth() - 5)) },
-          },
-        },
-        {
-          $group: {
-            _id: { year: { $year: '$paidAt' }, month: { $month: '$paidAt' } },
-            revenue: { $sum: '$total' },
-            count: { $sum: 1 },
-          },
-        },
-        { $sort: { '_id.year': 1, '_id.month': 1 } },
-      ]),
+      // Revenue last month
+      Payment.sum('amount', {
+        where: { paid_at: { [Op.between]: [startOfLast, endOfLast] } },
+      }),
+
+      // Outstanding (sent + overdue invoices)
+      Invoice.sum('total', {
+        where: { status: { [Op.in]: ['sent', 'overdue'] } },
+      }),
+
+      Invoice.count({ where: { status: 'overdue' } }),
+
+      // Recent invoices
+      Invoice.findAll({
+        include: [
+          { model: PrivateCustomer, as: 'privateCustomer', required: false,
+            attributes: ['first_name', 'last_name'] },
+          { model: Dealership,      as: 'dealership',      required: false,
+            attributes: ['name'] },
+          { model: Application,     as: 'application',     required: false,
+            attributes: ['app_type'] },
+        ],
+        order: [['issued_at', 'DESC']],
+        limit: 6,
+        attributes: ['id', 'invoice_number', 'status', 'total', 'issued_at'],
+      }),
+
+      // 6-month revenue chart — raw SQL for MySQL date grouping
+      sequelize.query(`
+        SELECT
+          YEAR(p.paid_at)  AS yr,
+          MONTH(p.paid_at) AS mo,
+          SUM(p.amount)    AS revenue,
+          COUNT(p.id)      AS jobs
+        FROM payments p
+        WHERE p.paid_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        GROUP BY YEAR(p.paid_at), MONTH(p.paid_at)
+        ORDER BY yr ASC, mo ASC
+      `, { type: sequelize.QueryTypes.SELECT }),
     ]);
 
-    // Format monthly revenue for chart
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const chartData = monthlyRevenue.map((m) => ({
-      month: months[m._id.month - 1],
-      revenue: m.revenue,
-      jobs: m.count,
+      month:   months[m.mo - 1],
+      revenue: parseFloat(m.revenue || 0),
+      jobs:    m.jobs,
     }));
 
     res.json({
-      totalCompanies,
+      totalDealerships,
       totalVehicles,
-      totalInvoices,
-      revenueThisMonth: revenueThisMonth[0]?.total || 0,
-      revenueLastMonth: revenueLastMonth[0]?.total || 0,
-      outstandingAmount: outstanding[0]?.total || 0,
+      totalApplications,
+      revenueThisMonth:  revenueThisMonth  || 0,
+      revenueLastMonth:  revenueLastMonth  || 0,
+      outstandingAmount: outstandingAmount || 0,
       overdueCount,
       recentInvoices,
       monthlyRevenue: chartData,
@@ -87,21 +99,23 @@ router.get('/summary', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.get('/due', async (req, res) => {
+// GET /api/dashboard/pending  — applications not yet completed
+router.get('/pending', async (req, res) => {
   try {
-    const days = parseInt(req.query.days) || 30;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() + days);
-    const vehicles = await Vehicle.find({
-      $or: [
-        { licenceExpiryDate: { $lte: cutoff, $gte: new Date() } },
-        { nextServiceDate: { $lte: cutoff, $gte: new Date() } },
+    const applications = await Application.findAll({
+      where: {
+        status: { [Op.notIn]: ['completed', 'cancelled'] },
+      },
+      include: [
+        { model: Vehicle,            as: 'vehicle' },
+        { model: PrivateCustomer,    as: 'privateCustomer',    required: false },
+        { model: Application.associations?.dealershipCustomer
+            ? Application.associations.dealershipCustomer.target : require('../models/DealershipCustomer'),
+          as: 'dealershipCustomer', required: false },
       ],
-    })
-      .populate('companyId', 'name phone')
-      .populate('driverId', 'fullName phone email')
-      .sort({ licenceExpiryDate: 1 });
-    res.json(vehicles);
+      order: [['created_at', 'ASC']],
+    });
+    res.json(applications);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

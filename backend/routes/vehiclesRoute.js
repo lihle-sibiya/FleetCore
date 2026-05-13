@@ -1,77 +1,61 @@
-//vehiclesRoute.js
+'use strict';
 
-"use strict";
-
-const router = require('express').Router();
-const { Vehicle, Reminder } = require('../models');
-const { protect } = require('../middleware/authMiddleware');
+const router                                         = require('express').Router();
+const { Op }                                         = require('sequelize');
+const { Vehicle, PrivateCustomer, DealershipCustomer, Dealership } = require('../models');
+const { protect }                                    = require('../middleware/authMiddleware');
 
 router.use(protect);
 
+// GET /api/vehicles
 router.get('/', async (req, res) => {
   try {
-    const q = req.query.companyId ? { companyId: req.query.companyId } : {};
-    const vehicles = await Vehicle.find(q)
-      .populate('companyId', 'name')
-      .populate('driverId', 'fullName phone');
-    res.json(vehicles);
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
+    const where = {};
+    if (req.query.private_customer_id)    where.private_customer_id    = req.query.private_customer_id;
+    if (req.query.dealership_customer_id) where.dealership_customer_id = req.query.dealership_customer_id;
 
-// Vehicles with service or licence due within N days
-router.get('/due', async (req, res) => {
-  try {
-    const days = parseInt(req.query.days) || 30;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() + days);
-    const vehicles = await Vehicle.find({
-      $or: [
-        { licenceExpiryDate: { $lte: cutoff, $gte: new Date() } },
-        { nextServiceDate: { $lte: cutoff, $gte: new Date() } },
+    const vehicles = await Vehicle.findAll({
+      where,
+      include: [
+        { model: PrivateCustomer,    as: 'privateCustomer',    required: false },
+        { model: DealershipCustomer, as: 'dealershipCustomer', required: false,
+          include: [{ model: Dealership, as: 'dealership', attributes: ['id', 'name'] }] },
       ],
-    }).populate('companyId', 'name phone').populate('driverId', 'fullName phone email');
+      order: [['created_at', 'DESC']],
+    });
     res.json(vehicles);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// POST /api/vehicles
 router.post('/', async (req, res) => {
   try {
     const vehicle = await Vehicle.create(req.body);
-    if (vehicle.licenceExpiryDate) {
-      await Reminder.create({
-        vehicleId: vehicle._id,
-        companyId: vehicle.companyId,
-        driverId: vehicle.driverId,
-        reminderType: 'licence',
-        dueDate: vehicle.licenceExpiryDate,
-      });
-    }
-    if (vehicle.nextServiceDate) {
-      await Reminder.create({
-        vehicleId: vehicle._id,
-        companyId: vehicle.companyId,
-        driverId: vehicle.driverId,
-        reminderType: 'service',
-        dueDate: vehicle.nextServiceDate,
-      });
-    }
     res.status(201).json(vehicle);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
+// GET /api/vehicles/:id
 router.get('/:id', async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id)
-      .populate('companyId').populate('driverId');
+    const vehicle = await Vehicle.findByPk(req.params.id, {
+      include: [
+        { model: PrivateCustomer,    as: 'privateCustomer',    required: false },
+        { model: DealershipCustomer, as: 'dealershipCustomer', required: false,
+          include: [{ model: Dealership, as: 'dealership', attributes: ['id', 'name'] }] },
+      ],
+    });
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found' });
     res.json(vehicle);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// PUT /api/vehicles/:id
 router.put('/:id', async (req, res) => {
   try {
-    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found' });
+    await vehicle.update(req.body);
     res.json(vehicle);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
