@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Companies from './pages/Companies';
+import Companies from './pages/Dealerships';
 import Vehicles from './pages/Vehicles';
 import Invoices from './pages/Invoices';
 import Drivers from './pages/Drivers';

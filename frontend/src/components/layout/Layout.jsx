@@ -4,12 +4,21 @@ import {
   LayoutDashboard, Building2, Truck, FileText, Users, LogOut, Zap
 } from 'lucide-react';
 
+// const NAV = [
+//   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
+//   { to: '/companies',  label: 'Companies',  icon: Building2 },
+//   { to: '/vehicles',   label: 'Vehicles',   icon: Truck },
+//   { to: '/invoices',   label: 'Invoices',   icon: FileText },
+//   { to: '/drivers',    label: 'Drivers',    icon: Users },
+// ];
+
 const NAV = [
-  { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
-  { to: '/companies',  label: 'Companies',  icon: Building2 },
-  { to: '/vehicles',   label: 'Vehicles',   icon: Truck },
-  { to: '/invoices',   label: 'Invoices',   icon: FileText },
-  { to: '/drivers',    label: 'Drivers',    icon: Users },
+  { to: '/',           label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/applications', label: 'Applications', icon: FileText }, 
+  { to: '/dealerships',  label: 'Dealerships',  icon: Building2 }, 
+  { to: '/customers',    label: 'Customers',    icon: Users },      
+  { to: '/vehicles',     label: 'Vehicles',     icon: Truck },
+  { to: '/invoices',     label: 'Invoices',     icon: Zap },
 ];
 
 export default function Layout({ children }) {
