@@ -4,10 +4,21 @@ import api from '../utils/api';
 import { useFetch } from '../hooks';
 import { PageHeader, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input, Select } from '../components/ui';
 
+// const EMPTY_FORM = {
+//   companyId: '', driverId: '', make: '', model: '', year: '',
+//   colour: '', registrationNumber: '', vinNumber: '',
+//   licenceExpiryDate: '', nextServiceDate: '', odometerKm: '',
+// };
+
 const EMPTY_FORM = {
-  companyId: '', driverId: '', make: '', model: '', year: '',
-  colour: '', registrationNumber: '', vinNumber: '',
-  licenceExpiryDate: '', nextServiceDate: '', odometerKm: '',
+  customer_type: 'private',
+  private_customer_id: '',
+  dealership_customer_id: '',
+  make: '',
+  model: '',
+  year: '',
+  vin: '',
+  reg_number: '',
 };
 
 const daysUntil = (date) => {
@@ -42,17 +53,35 @@ export default function Vehicles() {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const handleSave = async () => {
-    if (!form.companyId || !form.make || !form.model || !form.registrationNumber)
-      return setError('Company, make, model and registration number are required');
-    setSaving(true); setError('');
-    try {
-      await api.post('/vehicles', form);
-      setShowModal(false); setForm(EMPTY_FORM); refetch();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save');
-    } finally { setSaving(false); }
-  };
+  // const handleSave = async () => {
+  //   if (!form.companyId || !form.make || !form.model || !form.registrationNumber)
+  //     return setError('Company, make, model and registration number are required');
+  //   setSaving(true); setError('');
+  //   try {
+  //     await api.post('/vehicles', form);
+  //     setShowModal(false); setForm(EMPTY_FORM); refetch();
+  //   } catch (err) {
+  //     setError(err.response?.data?.message || 'Failed to save');
+  //   } finally { setSaving(false); }
+  // };
+
+  const payload = {
+  make: form.make,
+  model: form.model,
+  year: Number(form.year),
+  vin: form.vin,
+  reg_number: form.reg_number,
+  private_customer_id:
+    form.customer_type === 'private'
+      ? form.private_customer_id
+      : null,
+  dealership_customer_id:
+    form.customer_type === 'dealership'
+      ? form.dealership_customer_id
+      : null,
+};
+
+await api.post('/vehicles', payload);
 
   return (
     <div>

@@ -4,7 +4,7 @@ import api from '../utils/api';
 import { useFetch } from '../hooks';
 import { PageHeader, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input, Select } from '../components/ui';
 
-const EMPTY_FORM = { companyId: '', fullName: '', licenceNumber: '', licenceExpiry: '', phone: '', email: '' };
+const EMPTY_FORM = { first_name: '', last_name: '', id_number: '', licenceExpiry: '', phone: '', email: '', address: '' };
 
 export default function Drivers() {
   const [showModal, setShowModal] = useState(false);
