@@ -1,24 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import {
-  LayoutDashboard, Building2, Truck, FileText, Users, LogOut, Zap
-} from 'lucide-react';
-
-// const NAV = [
-//   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
-//   { to: '/companies',  label: 'Companies',  icon: Building2 },
-//   { to: '/vehicles',   label: 'Vehicles',   icon: Truck },
-//   { to: '/invoices',   label: 'Invoices',   icon: FileText },
-//   { to: '/drivers',    label: 'Drivers',    icon: Users },
-// ];
+import { LayoutDashboard, Building2, Truck, FileText, Users, LogOut, Zap, ClipboardList } from 'lucide-react';
 
 const NAV = [
-  { to: '/',           label: 'Dashboard',    icon: LayoutDashboard },
-  { to: '/applications', label: 'Applications', icon: FileText }, 
-  { to: '/dealerships',  label: 'Dealerships',  icon: Building2 }, 
-  { to: '/customers',    label: 'Customers',    icon: Users },      
+  { to: '/',             label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/applications', label: 'Applications', icon: ClipboardList },
+  { to: '/invoices',     label: 'Invoices',     icon: FileText },
   { to: '/vehicles',     label: 'Vehicles',     icon: Truck },
-  { to: '/invoices',     label: 'Invoices',     icon: Zap },
+  { to: '/customers',    label: 'Customers',    icon: Users },
+  { to: '/dealerships',  label: 'Dealerships',  icon: Building2 },
 ];
 
 export default function Layout({ children }) {
@@ -29,9 +19,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
-      {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0">
-        {/* Brand */}
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <div className="bg-blue-600 p-1.5 rounded-lg">
             <Zap size={14} className="text-white" />
@@ -39,7 +27,6 @@ export default function Layout({ children }) {
           <span className="font-bold text-gray-900 text-base">FleetCore</span>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -60,7 +47,6 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        {/* User + logout */}
         <div className="px-4 py-4 border-t border-gray-100">
           <div className="text-xs text-gray-500 mb-0.5">{user?.name}</div>
           <div className="text-xs text-gray-400 capitalize mb-3">{user?.role}</div>
@@ -73,7 +59,6 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-6xl mx-auto">{children}</div>
       </main>

@@ -1,20 +1,26 @@
-//seed.js
-
-'use strict';
+﻿'use strict';
 
 /**
- * FleetCore — Database Seeder
- * Generates realistic fake SA fleet data for portfolio demonstration.
+ * FleetCore — MySQL Seeder
+ * Generates realistic demo data for FleetCore using MySQL/Sequelize.
  * Run: npm run seed
  */
 
 require('dotenv').config();
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { faker } = require('@faker-js/faker');
-const { User, Company, Driver, Vehicle, Invoice, Reminder } = require('../models');
-
-// ── Fake SA data helpers ──────────────────────────────────────────────────────
+const { connectDB } = require('../config/db');
+const {
+  User,
+  Dealership,
+  DealershipCustomer,
+  PrivateCustomer,
+  Vehicle,
+  Application,
+  Document,
+  Invoice,
+  Payment,
+} = require('../models');
 
 const SA_VEHICLE_MAKES = [
   { make: 'Toyota', models: ['Hilux', 'Land Cruiser', 'Quantum', 'Fortuner'] },
@@ -38,8 +44,14 @@ const SA_COMPANIES = [
 ];
 
 const SA_STREETS = [
-  'Jan Smuts Ave', 'Voortrekker Road', 'Louis Botha Ave', 'Commissioner Street',
-  'Adderley Street', 'Buitenkant Street', 'Oxford Road', 'Rivonia Road',
+  'Jan Smuts Ave',
+  'Voortrekker Road',
+  'Louis Botha Ave',
+  'Commissioner Street',
+  'Adderley Street',
+  'Buitenkant Street',
+  'Oxford Road',
+  'Rivonia Road',
 ];
 
 const randomSaPlate = () => {
@@ -66,157 +78,195 @@ const pastDate = (minDays, maxDays) => {
   return d;
 };
 
-// ── Service line items by type ─────────────────────────────────────────────────
-const LINE_ITEMS = {
-  service: [
-    { description: 'Labour — Full Service', amount: 1800 },
-    { description: 'Oil Filter', amount: 280 },
-    { description: 'Air Filter', amount: 350 },
-    { description: 'Engine Oil 10W40 (8L)', amount: 960 },
-  ],
-  licence_renewal: [
-    { description: 'Licence Disc Renewal — Government Fee', amount: 480 },
-    { description: 'Processing & Admin Fee', amount: 150 },
-  ],
-  roadworthy: [
-    { description: 'Roadworthy Certificate Inspection', amount: 650 },
-    { description: 'Brake Test', amount: 220 },
-    { description: 'Emissions Test', amount: 180 },
-  ],
-  tyres: [
-    { description: 'Continental 265/65R17 (x4)', amount: 14800 },
-    { description: 'Fitting & Balancing (x4)', amount: 480 },
-    { description: 'Wheel Alignment', amount: 350 },
-  ],
-  repairs: [
-    { description: 'Diagnostic Scan', amount: 450 },
-    { description: 'Alternator Replacement', amount: 3200 },
-    { description: 'Labour — 3 hours', amount: 1350 },
-  ],
-};
-
-// ── Main seeder ───────────────────────────────────────────────────────────────
 const seed = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log('🔌 Connected to MongoDB');
+  await connectDB();
 
-  // Wipe existing data
-  await Promise.all([
-    User.deleteMany(), Company.deleteMany(), Driver.deleteMany(),
-    Vehicle.deleteMany(), Invoice.deleteMany(), Reminder.deleteMany(),
-  ]);
+  await Payment.destroy({ where: {} });
+  await Document.destroy({ where: {} });
+  await Invoice.destroy({ where: {} });
+  await Application.destroy({ where: {} });
+  await Vehicle.destroy({ where: {} });
+  await DealershipCustomer.destroy({ where: {} });
+  await PrivateCustomer.destroy({ where: {} });
+  await Dealership.destroy({ where: {} });
+  await User.destroy({ where: {} });
+
   console.log('🗑  Cleared existing data');
 
-  // ── Users ──
   const passwordHash = await bcrypt.hash('Demo1234!', 12);
-  const [adminUser, clerkUser] = await User.insertMany([
-    { name: 'Thabo Nkosi', email: 'admin@fleetcore.co.za', passwordHash, role: 'admin' },
-    { name: 'Priya Pillay', email: 'clerk@fleetcore.co.za', passwordHash, role: 'clerk' },
+  const [adminUser, clerkUser] = await Promise.all([
+    User.create({ name: 'Thabo Nkosi', email: 'admin@fleetcore.co.za', passwordHash, role: 'admin' }),
+    User.create({ name: 'Priya Pillay', email: 'clerk@fleetcore.co.za', passwordHash, role: 'clerk' }),
   ]);
   console.log('👤 Users seeded');
 
-  // ── Companies ──
-  const companies = await Company.insertMany(
-    SA_COMPANIES.map((c) => ({
-      name: c.name,
-      registrationNumber: `${faker.number.int({ min: 2000, max: 2023 })}/${faker.number.int({ min: 100000, max: 999999 })}/07`,
-      vatNumber: `4${faker.number.int({ min: 10000000, max: 99999999 })}`,
-      phone: `0${faker.number.int({ min: 10, max: 99 })} ${faker.number.int({ min: 100, max: 999 })} ${faker.number.int({ min: 1000, max: 9999 })}`,
-      email: `accounts@${c.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '')}.co.za`,
-      address: `${faker.number.int({ min: 1, max: 200 })} ${faker.helpers.arrayElement(SA_STREETS)}, ${c.city}`,
-    }))
-  );
-  console.log(`🏢 ${companies.length} companies seeded`);
-
-  // ── Drivers + Vehicles ──
-  const allVehicles = [];
-  for (const company of companies) {
-    const driverCount = faker.number.int({ min: 2, max: 5 });
-    const drivers = await Driver.insertMany(
-      Array.from({ length: driverCount }, () => ({
-        companyId: company._id,
-        fullName: faker.person.fullName(),
-        licenceNumber: `${faker.string.alpha({ length: 2, casing: 'upper' })}${faker.number.int({ min: 100000, max: 999999 })}`,
-        licenceExpiry: futureDate(30, 730),
-        phone: `07${faker.number.int({ min: 10000000, max: 99999999 })}`,
-        email: faker.internet.email().toLowerCase(),
-      }))
-    );
-
-    const vehicleCount = faker.number.int({ min: 2, max: 6 });
-    const vehicles = await Vehicle.insertMany(
-      Array.from({ length: vehicleCount }, (_, i) => {
-        const { make, model } = randomVehicle();
-        return {
-          companyId: company._id,
-          driverId: drivers[i % drivers.length]._id,
-          make, model,
-          year: faker.number.int({ min: 2015, max: 2023 }),
-          colour: faker.helpers.arrayElement(['White', 'Silver', 'Black', 'Red', 'Blue']),
-          registrationNumber: randomSaPlate(),
-          vinNumber: faker.vehicle.vin(),
-          licenceExpiryDate: futureDate(7, 180),   // some expiring soon for demo
-          nextServiceDate: futureDate(5, 90),
-          odometerKm: faker.number.int({ min: 50000, max: 350000 }),
-        };
-      })
-    );
-    allVehicles.push(...vehicles.map(v => ({ ...v.toObject(), company, drivers })));
+  const dealerships = [];
+  for (const company of SA_COMPANIES) {
+    const dealership = await Dealership.create({
+      name: company.name,
+      contact_name: faker.person.fullName(),
+      phone: `0${faker.number.int({ min: 71, max: 79 })} ${faker.number.int({ min: 100, max: 999 })} ${faker.number.int({ min: 1000, max: 9999 })}`,
+      email: `info@${company.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '')}.co.za`,
+      address: `${faker.number.int({ min: 1, max: 200 })} ${faker.helpers.arrayElement(SA_STREETS)}, ${company.city}`,
+    });
+    dealerships.push(dealership);
   }
-  console.log(`🚛 Vehicles and drivers seeded`);
+  console.log(`🏢 ${dealerships.length} dealerships seeded`);
 
-  // ── Invoices ──
-  const serviceTypes = ['service', 'licence_renewal', 'roadworthy', 'tyres', 'repairs'];
-  const statuses = ['paid', 'paid', 'paid', 'issued', 'issued', 'overdue']; // weighted toward paid
-
-  for (const { company, drivers, ...vehicle } of allVehicles) {
-    const invoiceCount = faker.number.int({ min: 1, max: 4 });
-    for (let i = 0; i < invoiceCount; i++) {
-      const serviceType = faker.helpers.arrayElement(serviceTypes);
-      const items = LINE_ITEMS[serviceType];
-      const lineItems = faker.helpers.arrayElements(items, faker.number.int({ min: 1, max: items.length }));
-      const subtotal = lineItems.reduce((s, l) => s + l.amount, 0);
-      const vatAmount = parseFloat((subtotal * 0.15).toFixed(2));
-      const total = parseFloat((subtotal + vatAmount).toFixed(2));
-      const status = faker.helpers.arrayElement(statuses);
-      const createdAt = pastDate(1, 180);
-      const dueDate = new Date(createdAt);
-      dueDate.setDate(dueDate.getDate() + 30);
-
-      await Invoice.create({
-        companyId: company._id,
-        vehicleId: vehicle._id,
-        driverId: drivers[0]._id,
-        clerkId: faker.helpers.arrayElement([adminUser._id, clerkUser._id]),
-        serviceType,
-        lineItems,
-        subtotal,
-        vatIncluded: true,
-        vatAmount,
-        total,
-        status,
-        dueDate,
-        paidAt: status === 'paid' ? pastDate(1, 30) : null,
-        createdAt,
+  const dealershipCustomers = [];
+  for (const dealership of dealerships) {
+    const customerCount = faker.number.int({ min: 2, max: 4 });
+    for (let i = 0; i < customerCount; i += 1) {
+      const customer = await DealershipCustomer.create({
+        dealership_id: dealership.id,
+        first_name: faker.person.firstName(),
+        last_name: faker.person.lastName(),
+        id_number: faker.string.numeric(13),
+        phone: `0${faker.number.int({ min: 71, max: 79 })} ${faker.number.int({ min: 100, max: 999 })} ${faker.number.int({ min: 1000, max: 9999 })}`,
+        email: faker.internet.email().toLowerCase(),
       });
+      dealershipCustomers.push(customer);
     }
   }
-  console.log('🧾 Invoices seeded');
+  console.log(`👥 ${dealershipCustomers.length} dealership customers seeded`);
 
-  const invoiceCount = await Invoice.countDocuments();
-  const totalRevenue = await Invoice.aggregate([
-    { $match: { status: 'paid' } },
-    { $group: { _id: null, total: { $sum: '$total' } } },
+  const privateCustomers = [];
+  for (let i = 0; i < 4; i += 1) {
+    const privateCustomer = await PrivateCustomer.create({
+      first_name: faker.person.firstName(),
+      last_name: faker.person.lastName(),
+      id_number: faker.string.numeric(13),
+      phone: `0${faker.number.int({ min: 71, max: 79 })} ${faker.number.int({ min: 100, max: 999 })} ${faker.number.int({ min: 1000, max: 9999 })}`,
+      email: faker.internet.email().toLowerCase(),
+      address: `${faker.number.int({ min: 1, max: 200 })} ${faker.helpers.arrayElement(SA_STREETS)}, ${faker.helpers.arrayElement(['Cape Town', 'Johannesburg', 'Durban'])}`,
+    });
+    privateCustomers.push(privateCustomer);
+  }
+  console.log(`🧑‍🤝‍🧑 ${privateCustomers.length} private customers seeded`);
+
+  const vehicles = [];
+  for (const customer of dealershipCustomers) {
+    const vehicleCount = faker.number.int({ min: 1, max: 3 });
+    for (let i = 0; i < vehicleCount; i += 1) {
+      const { make, model } = randomVehicle();
+      const vehicle = await Vehicle.create({
+        dealership_customer_id: customer.id,
+        make,
+        model,
+        year: faker.number.int({ min: 2015, max: 2024 }),
+        vin: faker.vehicle.vin(),
+        reg_number: randomSaPlate(),
+      });
+      vehicles.push(vehicle);
+    }
+  }
+
+  for (const privateCustomer of privateCustomers) {
+    const vehicleCount = faker.number.int({ min: 1, max: 2 });
+    for (let i = 0; i < vehicleCount; i += 1) {
+      const { make, model } = randomVehicle();
+      const vehicle = await Vehicle.create({
+        private_customer_id: privateCustomer.id,
+        make,
+        model,
+        year: faker.number.int({ min: 2015, max: 2024 }),
+        vin: faker.vehicle.vin(),
+        reg_number: randomSaPlate(),
+      });
+      vehicles.push(vehicle);
+    }
+  }
+  console.log(`🚗 ${vehicles.length} vehicles seeded`);
+
+  const applications = [];
+  for (const vehicle of vehicles.slice(0, 8)) {
+    const isDealership = vehicle.dealership_customer_id !== null;
+    const application = await Application.create({
+      vehicle_id: vehicle.id,
+      private_customer_id: isDealership ? null : vehicle.private_customer_id,
+      dealership_customer_id: isDealership ? vehicle.dealership_customer_id : null,
+      app_type: faker.helpers.arrayElement(['new_registration', 'ownership_transfer']),
+      status: faker.helpers.arrayElement(['pending', 'documents_received', 'submitted_to_licensing', 'completed']),
+      licensing_fee_paid: faker.number.int({ min: 800, max: 1800 }),
+      licensing_dept_ref: `LIC-${faker.number.int({ min: 10000, max: 99999 })}`,
+      submitted_at: pastDate(14, 60),
+      completed_at: faker.helpers.arrayElement([null, pastDate(1, 14)]),
+    });
+    applications.push(application);
+  }
+  console.log(`📝 ${applications.length} applications seeded`);
+
+  const documents = [];
+  const documentTypes = ['id_document', 'proof_of_address', 'proof_of_ownership', 'vehicle_registration'];
+  for (const application of applications) {
+    const docCount = faker.number.int({ min: 1, max: 3 });
+    for (let i = 0; i < docCount; i += 1) {
+      const doc = await Document.create({
+        application_id: application.id,
+        doc_type: faker.helpers.arrayElement(documentTypes),
+        source: 'digital_upload',
+        file_path: `/uploads/demo/${application.id}-${i + 1}.pdf`,
+        original_filename: `document-${application.id}-${i + 1}.pdf`,
+      });
+      documents.push(doc);
+    }
+  }
+  console.log(`📄 ${documents.length} documents seeded`);
+
+  const invoices = [];
+  for (const application of applications) {
+    const isDealership = application.dealership_customer_id !== null;
+    const invoice = await Invoice.create({
+      application_id: application.id,
+      private_customer_id: isDealership ? null : application.private_customer_id,
+      dealership_id: isDealership ? dealershipCustomers.find((cust) => cust.id === application.dealership_customer_id).dealership_id : null,
+      invoice_number: `FLEET-${faker.number.int({ min: 1000, max: 9999 })}`,
+      subtotal: faker.number.int({ min: 900, max: 7500 }),
+      vat: 0,
+      total: 0,
+      status: faker.helpers.arrayElement(['draft', 'sent', 'paid', 'overdue']),
+      due_date: futureDate(7, 30),
+      paid_at: null,
+    });
+    invoice.vat = parseFloat((invoice.subtotal * 0.15).toFixed(2));
+    invoice.total = parseFloat((invoice.subtotal + invoice.vat).toFixed(2));
+    if (invoice.status === 'paid') {
+      invoice.paid_at = pastDate(1, 15);
+    }
+    await invoice.save();
+    invoices.push(invoice);
+  }
+  console.log(`🧾 ${invoices.length} invoices seeded`);
+
+  const payments = [];
+  for (const invoice of invoices.filter((invoice) => invoice.status === 'paid')) {
+    const payment = await Payment.create({
+      invoice_id: invoice.id,
+      amount: invoice.total,
+      method: faker.helpers.arrayElement(['eft', 'card', 'cash']),
+      reference: `PAY-${faker.number.int({ min: 10000, max: 99999 })}`,
+    });
+    payments.push(payment);
+  }
+  console.log(`💳 ${payments.length} payments seeded`);
+
+  const [userCount, dealershipCount, vehicleCount, applicationCount, invoiceCount] = await Promise.all([
+    User.count(),
+    Dealership.count(),
+    Vehicle.count(),
+    Application.count(),
+    Invoice.count(),
   ]);
 
   console.log('\n✅ Seed complete!');
-  console.log(`   Companies : ${companies.length}`);
-  console.log(`   Invoices  : ${invoiceCount}`);
-  console.log(`   Revenue   : R ${totalRevenue[0]?.total?.toFixed(2) || 0}`);
+  console.log(`   Users       : ${userCount}`);
+  console.log(`   Dealerships : ${dealershipCount}`);
+  console.log(`   Vehicles    : ${vehicleCount}`);
+  console.log(`   Applications: ${applicationCount}`);
+  console.log(`   Invoices    : ${invoiceCount}`);
   console.log('\n🔑 Login credentials:');
   console.log('   Admin → admin@fleetcore.co.za / Demo1234!');
   console.log('   Clerk → clerk@fleetcore.co.za / Demo1234!');
-  await mongoose.disconnect();
 };
 
 seed().catch((err) => {
