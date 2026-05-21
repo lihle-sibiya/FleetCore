@@ -3,7 +3,7 @@
 const cron         = require('node-cron');
 const nodemailer   = require('nodemailer');
 const { Op }       = require('sequelize');
-const { Invoice }  = require('../models');
+const { Invoice, PrivateCustomer, Dealership } = require('../models');
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -18,13 +18,16 @@ const sendEmail = async (to, subject, html) => {
 };
 
 const startReminderJob = () => {
-  // Runs daily at 08:00
   cron.schedule('0 8 * * *', async () => {
     console.log('[Cron] Checking overdue invoices...');
     try {
       const today = new Date();
 
-      // Mark sent invoices as overdue if due_date has passed
+      // FIX: pass { validate: false } so the billedToCheck model validator
+      // does NOT fire when we only want to update status.
+      // The validation rule (must have exactly one of private_customer_id /
+      // dealership_id) is irrelevant for a status-only update, but Sequelize
+      // runs ALL validators on every update() unless told not to.
       const [overdueCount] = await Invoice.update(
         { status: 'overdue' },
         {
@@ -32,11 +35,14 @@ const startReminderJob = () => {
             status:   'sent',
             due_date: { [Op.lt]: today },
           },
+          validate: false,   // ← skip model-level validators for this bulk update
         }
       );
-      if (overdueCount > 0) console.log(`[Cron] Marked ${overdueCount} invoice(s) as overdue`);
+      if (overdueCount > 0) {
+        console.log(`[Cron] Marked ${overdueCount} invoice(s) as overdue`);
+      }
 
-      // Find newly overdue invoices to send email alerts
+      // Find newly overdue invoices (became overdue yesterday → today)
       const overdue = await Invoice.findAll({
         where: {
           status:   'overdue',
@@ -48,15 +54,15 @@ const startReminderJob = () => {
           },
         },
         include: [
-          { model: require('../models/PrivateCustomer'), as: 'privateCustomer', required: false },
-          { model: require('../models/Dealership'),      as: 'dealership',      required: false },
+          { model: PrivateCustomer, as: 'privateCustomer', required: false },
+          { model: Dealership,      as: 'dealership',      required: false },
         ],
       });
 
       let sent = 0;
       for (const inv of overdue) {
         const recipient = inv.privateCustomer?.email || inv.dealership?.email;
-        const name      = inv.privateCustomer
+        const name = inv.privateCustomer
           ? `${inv.privateCustomer.first_name} ${inv.privateCustomer.last_name}`
           : inv.dealership?.name;
         if (!recipient) continue;
@@ -73,9 +79,9 @@ const startReminderJob = () => {
                 was due on <strong>${new Date(inv.due_date).toLocaleDateString('en-ZA')}</strong>
                 and is now overdue.
               </p>
-              <p>Please arrange payment as soon as possible to avoid further delays.</p>
+              <p>Please arrange payment as soon as possible.</p>
               <p style="margin-top:24px;color:#64748b;font-size:13px">
-                FleetCore — Licensing & Registration Services
+                FleetCore — Licensing &amp; Registration Services
               </p>
             </div>
           </div>`;

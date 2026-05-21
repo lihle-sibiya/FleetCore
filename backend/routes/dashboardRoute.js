@@ -1,9 +1,12 @@
 'use strict';
 
 const router        = require('express').Router();
-const { Op, fn, col, literal } = require('sequelize');
+const { Op }        = require('sequelize');
 const { sequelize } = require('../config/db');
-const { Invoice, Application, Vehicle, Dealership, PrivateCustomer, Payment } = require('../models');
+const {
+  Invoice, Application, Vehicle, Dealership,
+  PrivateCustomer, DealershipCustomer, Payment,
+} = require('../models');
 const { protect }   = require('../middleware/authMiddleware');
 
 router.use(protect);
@@ -11,10 +14,10 @@ router.use(protect);
 // GET /api/dashboard/summary
 router.get('/summary', async (req, res) => {
   try {
-    const now           = new Date();
-    const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLast   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLast     = new Date(now.getFullYear(), now.getMonth(), 0);
+    const now          = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLast  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLast    = new Date(now.getFullYear(), now.getMonth(), 0);
 
     const [
       totalDealerships,
@@ -32,24 +35,20 @@ router.get('/summary', async (req, res) => {
       Vehicle.count(),
       Application.count(),
 
-      // Revenue this month (paid invoices)
       Payment.sum('amount', {
         where: { paid_at: { [Op.gte]: startOfMonth } },
       }),
 
-      // Revenue last month
       Payment.sum('amount', {
         where: { paid_at: { [Op.between]: [startOfLast, endOfLast] } },
       }),
 
-      // Outstanding (sent + overdue invoices)
       Invoice.sum('total', {
         where: { status: { [Op.in]: ['sent', 'overdue'] } },
       }),
 
       Invoice.count({ where: { status: 'overdue' } }),
 
-      // Recent invoices
       Invoice.findAll({
         include: [
           { model: PrivateCustomer, as: 'privateCustomer', required: false,
@@ -59,12 +58,11 @@ router.get('/summary', async (req, res) => {
           { model: Application,     as: 'application',     required: false,
             attributes: ['app_type'] },
         ],
-        order: [['issued_at', 'DESC']],
-        limit: 6,
+        order:      [['issued_at', 'DESC']],
+        limit:      6,
         attributes: ['id', 'invoice_number', 'status', 'total', 'issued_at'],
       }),
 
-      // 6-month revenue chart — raw SQL for MySQL date grouping
       sequelize.query(`
         SELECT
           YEAR(p.paid_at)  AS yr,
@@ -78,9 +76,9 @@ router.get('/summary', async (req, res) => {
       `, { type: sequelize.QueryTypes.SELECT }),
     ]);
 
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const chartData = monthlyRevenue.map((m) => ({
-      month:   months[m.mo - 1],
+      month:   MONTHS[m.mo - 1],
       revenue: parseFloat(m.revenue || 0),
       jobs:    m.jobs,
     }));
@@ -96,10 +94,12 @@ router.get('/summary', async (req, res) => {
       recentInvoices,
       monthlyRevenue: chartData,
     });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// GET /api/dashboard/pending  — applications not yet completed
+// GET /api/dashboard/pending — applications not yet completed or cancelled
 router.get('/pending', async (req, res) => {
   try {
     const applications = await Application.findAll({
@@ -109,14 +109,17 @@ router.get('/pending', async (req, res) => {
       include: [
         { model: Vehicle,            as: 'vehicle' },
         { model: PrivateCustomer,    as: 'privateCustomer',    required: false },
-        { model: Application.associations?.dealershipCustomer
-            ? Application.associations.dealershipCustomer.target : require('../models/DealershipCustomer'),
-          as: 'dealershipCustomer', required: false },
+        // FIX: use the model directly — don't rely on Application.associations
+        // at require-time since models are loaded in a specific order
+        { model: DealershipCustomer, as: 'dealershipCustomer', required: false,
+          include: [{ model: Dealership, as: 'dealership', attributes: ['id', 'name'] }] },
       ],
       order: [['created_at', 'ASC']],
     });
     res.json(applications);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;
