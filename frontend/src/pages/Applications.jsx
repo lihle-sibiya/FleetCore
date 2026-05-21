@@ -1,275 +1,279 @@
 import { useState } from 'react';
-import { ClipboardList, Plus, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
 import { useFetch } from '../hooks/hooks';
 import {
-  PageHeader, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input, Select
+  PageShell, PageHeader, Card, Table, TR, TD, Btn, AppStatusBadge, Badge,
+  TabBar, Modal, Field, FormRow, Input, Select, EmptyState, Spinner, Alert
 } from '../components/ui/ui';
 
 const STATUS_STEPS = ['pending', 'documents_received', 'submitted_to_licensing', 'completed', 'cancelled'];
 const TYPE_LABELS = { new_registration: 'New Registration', ownership_transfer: 'Ownership Transfer' };
 
-const AppStatusBadge = ({ status }) => {
-  const styles = {
-    pending:                 'bg-yellow-100 text-yellow-800',
-    documents_received:      'bg-blue-100 text-blue-800',
-    submitted_to_licensing:  'bg-purple-100 text-purple-800',
-    completed:               'bg-green-100 text-green-800',
-    cancelled:               'bg-gray-100 text-gray-500',
-  };
-  return (
-    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
-      {status?.replace(/_/g, ' ')}
-    </span>
-  );
-};
-
 const EMPTY_FORM = {
-  app_type: 'new_registration',
-  owner_type: 'private',
-  vehicle_id: '',
-  private_customer_id: '',
-  dealership_customer_id: '',
+  app_type: 'new_registration', owner_type: 'private',
+  vehicle_id: '', private_customer_id: '', dealership_customer_id: '',
 };
 
 export default function Applications() {
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [detailItem, setDetailItem] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [detail, setDetail] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const { data, loading, refetch } = useFetch(
-    `/applications?status=${statusFilter}&app_type=${typeFilter}&limit=50`,
-    [statusFilter, typeFilter]
+    `/applications?status=${statusFilter}&limit=100`,
+    [statusFilter]
   );
+  const { data: allData } = useFetch('/applications?limit=1000');
   const { data: vehicles } = useFetch('/vehicles');
   const { data: privateCustomers } = useFetch('/customers/private');
   const { data: dealershipCustomers } = useFetch('/customers/dealership');
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const handleSave = async () => {
+  // Count by status for tabs
+  const all = allData?.applications || [];
+  const counts = {
+    '': all.length,
+    pending: all.filter(a => a.status === 'pending').length,
+    documents_received: all.filter(a => a.status === 'documents_received').length,
+    submitted_to_licensing: all.filter(a => a.status === 'submitted_to_licensing').length,
+    completed: all.filter(a => a.status === 'completed').length,
+  };
+
+  const TABS = [
+    { value: '', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'documents_received', label: 'Docs Received' },
+    { value: 'submitted_to_licensing', label: 'Submitted' },
+    { value: 'completed', label: 'Completed' },
+  ].map(t => ({ ...t, count: counts[t.value] }));
+
+  const handleCreate = async () => {
     if (!form.vehicle_id) return setError('Vehicle is required');
     if (form.owner_type === 'private' && !form.private_customer_id) return setError('Select a private customer');
     if (form.owner_type === 'dealership' && !form.dealership_customer_id) return setError('Select a dealership customer');
     setSaving(true); setError('');
     try {
-      const payload = {
+      await api.post('/applications', {
         app_type: form.app_type,
         vehicle_id: parseInt(form.vehicle_id),
-        private_customer_id:    form.owner_type === 'private'    ? parseInt(form.private_customer_id)    : null,
+        private_customer_id: form.owner_type === 'private' ? parseInt(form.private_customer_id) : null,
         dealership_customer_id: form.owner_type === 'dealership' ? parseInt(form.dealership_customer_id) : null,
-      };
-      await api.post('/applications', payload);
-      setShowModal(false); setForm(EMPTY_FORM); refetch();
+      });
+      setShowNew(false); setForm(EMPTY_FORM); refetch();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create');
+      setError(err.response?.data?.message || 'Failed to create application');
     } finally { setSaving(false); }
   };
 
-  const advanceStatus = async (app) => {
+  const advance = async (app) => {
     const idx = STATUS_STEPS.indexOf(app.status);
-    if (idx === -1 || app.status === 'completed' || app.status === 'cancelled') return;
-    const nextStatus = STATUS_STEPS[idx + 1];
-    await api.patch(`/applications/${app.id}/status`, { status: nextStatus });
+    if (idx < 0 || app.status === 'completed' || app.status === 'cancelled') return;
+    await api.patch(`/applications/${app.id}/status`, { status: STATUS_STEPS[idx + 1] });
     refetch();
-    if (detailItem?.id === app.id) setDetailItem({ ...detailItem, status: nextStatus });
+    if (detail?.id === app.id) setDetail({ ...detail, status: STATUS_STEPS[idx + 1] });
   };
 
-  const STATUS_FILTERS = [
-    { value: '', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'documents_received', label: 'Docs received' },
-    { value: 'submitted_to_licensing', label: 'Submitted' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ];
+  const apps = data?.applications || [];
 
   return (
-    <div>
+    <PageShell>
       <PageHeader
         title="Applications"
-        subtitle={`${data?.total ?? 0} total`}
-        action={<Btn onClick={() => setShowModal(true)}><Plus size={15} /> New application</Btn>}
+        subtitle="Licensing and transfer of ownership applications"
+        breadcrumb="CRM / Applications"
+        action={
+          <Btn onClick={() => setShowNew(true)}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            New Application
+          </Btn>
+        }
       />
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {STATUS_FILTERS.map(f => (
-            <button key={f.value} onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                statusFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">All types</option>
-          <option value="new_registration">New Registration</option>
-          <option value="ownership_transfer">Ownership Transfer</option>
-        </select>
-      </div>
+      <TabBar tabs={TABS} active={statusFilter} onChange={setStatusFilter} />
 
-      {loading ? <LoadingSpinner /> : !data?.applications?.length ? (
-        <EmptyState icon={ClipboardList} title="No applications"
-          action={<Btn onClick={() => setShowModal(true)}><Plus size={15} />New application</Btn>}
-        />
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {['#', 'Type', 'Vehicle', 'Customer', 'Status', 'Fee paid', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {data.applications.map((app) => {
-                const customer = app.privateCustomer
-                  ? `${app.privateCustomer.first_name} ${app.privateCustomer.last_name}`
-                  : app.dealershipCustomer
-                    ? `${app.dealershipCustomer.first_name} ${app.dealershipCustomer.last_name}`
-                    : '—';
-                const vehicle = app.vehicle
-                  ? `${app.vehicle.make} ${app.vehicle.model} (${app.vehicle.reg_number || app.vehicle.vin})`
+      <Card>
+        {loading ? <Spinner /> : !apps.length ? (
+          <EmptyState icon="📋" title="No applications found" body="Create a new application to get started."
+            action={<Btn onClick={() => setShowNew(true)}>New Application</Btn>}
+          />
+        ) : (
+          <Table headers={['App #', 'Type', 'Vehicle', 'Customer', 'Status', 'Licence Fee', 'Created', '']}>
+            {apps.map(app => {
+              const customer = app.privateCustomer
+                ? `${app.privateCustomer.first_name} ${app.privateCustomer.last_name}`
+                : app.dealershipCustomer
+                  ? `${app.dealershipCustomer.first_name} ${app.dealershipCustomer.last_name}`
                   : '—';
-                const canAdvance = app.status !== 'completed' && app.status !== 'cancelled';
-                return (
-                  <tr key={app.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 text-xs">#{app.id}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-medium text-gray-700">{TYPE_LABELS[app.app_type]}</span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{vehicle}</td>
-                    <td className="px-4 py-3 text-gray-600">{customer}</td>
-                    <td className="px-4 py-3"><AppStatusBadge status={app.status} /></td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {app.licensing_fee_paid ? `R ${Number(app.licensing_fee_paid).toFixed(2)}` : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {canAdvance && (
-                          <Btn size="sm" variant="secondary" onClick={() => advanceStatus(app)}>
-                            Advance
-                          </Btn>
-                        )}
-                        <button onClick={() => setDetailItem(app)} className="text-gray-400 hover:text-blue-600">
-                          <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+              const canAdvance = app.status !== 'completed' && app.status !== 'cancelled';
+              return (
+                <TR key={app.id} onClick={() => setDetail(app)}>
+                  <TD mono muted>#{app.id}</TD>
+                  <TD>
+                    <Badge
+                      label={app.app_type === 'new_registration' ? 'New Reg' : 'Transfer'}
+                      color={app.app_type === 'new_registration' ? 'blue' : 'purple'}
+                    />
+                  </TD>
+                  <TD>
+                    <div style={{ fontWeight: 500 }}>
+                      {app.vehicle ? `${app.vehicle.make} ${app.vehicle.model} ${app.vehicle.year}` : '—'}
+                    </div>
+                    {app.vehicle?.reg_number && <div style={{ fontSize: '11.5px', color: '#9ba3bf', fontFamily: "'DM Mono', monospace" }}>{app.vehicle.reg_number}</div>}
+                  </TD>
+                  <TD>{customer}</TD>
+                  <TD><AppStatusBadge status={app.status} /></TD>
+                  <TD mono muted>{app.licensing_fee_paid ? `R ${Number(app.licensing_fee_paid).toFixed(2)}` : '—'}</TD>
+                  <TD muted>{new Date(app.created_at).toLocaleDateString('en-ZA')}</TD>
+                  <TD>
+                    {canAdvance && (
+                      <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); advance(app); }}>
+                        Advance →
+                      </Btn>
+                    )}
+                  </TD>
+                </TR>
+              );
+            })}
+          </Table>
+        )}
+      </Card>
 
-      {/* New Application Modal */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); setError(''); setForm(EMPTY_FORM); }} title="New Application">
-        {error && <div className="mb-3 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+      {/* New application modal */}
+      <Modal open={showNew} onClose={() => { setShowNew(false); setError(''); setForm(EMPTY_FORM); }} title="New Application">
+        <Alert type="error" message={error} />
+        <FormRow>
+          <Field label="Application type" required>
+            <Select value={form.app_type} onChange={set('app_type')}>
+              <option value="new_registration">New Registration</option>
+              <option value="ownership_transfer">Ownership Transfer</option>
+            </Select>
+          </Field>
+        </FormRow>
+        <FormRow>
+          <Field label="Vehicle" required>
+            <Select value={form.vehicle_id} onChange={set('vehicle_id')}>
+              <option value="">Select vehicle…</option>
+              {vehicles?.map(v => (
+                <option key={v.id} value={v.id}>{v.make} {v.model} {v.year} — {v.reg_number || v.vin}</option>
+              ))}
+            </Select>
+          </Field>
+        </FormRow>
 
-        <FormField label="Application type *">
-          <Select value={form.app_type} onChange={set('app_type')}>
-            <option value="new_registration">New Registration</option>
-            <option value="ownership_transfer">Ownership Transfer</option>
-          </Select>
-        </FormField>
-
-        <FormField label="Vehicle *">
-          <Select value={form.vehicle_id} onChange={set('vehicle_id')}>
-            <option value="">Select vehicle</option>
-            {vehicles?.map(v => (
-              <option key={v.id} value={v.id}>{v.make} {v.model} {v.year} — {v.reg_number || v.vin}</option>
+        {/* Owner type toggle */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', marginBottom: '8px' }}>Customer type</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {['private', 'dealership'].map(t => (
+              <button key={t} onClick={() => setForm(f => ({ ...f, owner_type: t, private_customer_id: '', dealership_customer_id: '' }))}
+                style={{
+                  padding: '7px 16px', borderRadius: '8px', border: '1px solid',
+                  borderColor: form.owner_type === t ? '#3b82f6' : '#d1d9f0',
+                  background: form.owner_type === t ? '#eff6ff' : '#fff',
+                  color: form.owner_type === t ? '#1d4ed8' : '#6b7280',
+                  fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize',
+                }}
+              >{t} customer</button>
             ))}
-          </Select>
-        </FormField>
-
-        {/* Owner type */}
-        <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg w-fit">
-          {['private', 'dealership'].map((t) => (
-            <button key={t} onClick={() => setForm(f => ({ ...f, owner_type: t, private_customer_id: '', dealership_customer_id: '' }))}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors capitalize ${
-                form.owner_type === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >{t} customer</button>
-          ))}
+          </div>
         </div>
 
         {form.owner_type === 'private' ? (
-          <FormField label="Private customer *">
-            <Select value={form.private_customer_id} onChange={set('private_customer_id')}>
-              <option value="">Select customer</option>
-              {privateCustomers?.map(c => (
-                <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.id_number}</option>
-              ))}
-            </Select>
-          </FormField>
+          <FormRow>
+            <Field label="Private customer" required>
+              <Select value={form.private_customer_id} onChange={set('private_customer_id')}>
+                <option value="">Select customer…</option>
+                {privateCustomers?.map(c => (
+                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.id_number}</option>
+                ))}
+              </Select>
+            </Field>
+          </FormRow>
         ) : (
-          <FormField label="Dealership customer *">
-            <Select value={form.dealership_customer_id} onChange={set('dealership_customer_id')}>
-              <option value="">Select dealership customer</option>
-              {dealershipCustomers?.map(c => (
-                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-              ))}
-            </Select>
-          </FormField>
+          <FormRow>
+            <Field label="Dealership customer" required>
+              <Select value={form.dealership_customer_id} onChange={set('dealership_customer_id')}>
+                <option value="">Select dealership customer…</option>
+                {dealershipCustomers?.map(c => (
+                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                ))}
+              </Select>
+            </Field>
+          </FormRow>
         )}
 
-        <div className="flex justify-end gap-2 mt-2">
-          <Btn variant="secondary" onClick={() => setShowModal(false)}>Cancel</Btn>
-          <Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Create application'}</Btn>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+          <Btn variant="secondary" onClick={() => setShowNew(false)}>Cancel</Btn>
+          <Btn onClick={handleCreate} disabled={saving}>{saving ? 'Creating…' : 'Create Application'}</Btn>
         </div>
       </Modal>
 
-      {/* Detail Modal */}
-      <Modal open={!!detailItem} onClose={() => setDetailItem(null)} title={`Application #${detailItem?.id}`}>
-        {detailItem && (
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <div><span className="text-gray-400 text-xs">Type</span><div className="font-medium">{TYPE_LABELS[detailItem.app_type]}</div></div>
-              <div><span className="text-gray-400 text-xs">Status</span><div><AppStatusBadge status={detailItem.status} /></div></div>
+      {/* Detail panel modal */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Application #${detail?.id}`} width="600px">
+        {detail && (
+          <div>
+            {/* Status pipeline */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '12px', color: '#9ba3bf', fontWeight: 500, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status Pipeline</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                {['pending', 'documents_received', 'submitted_to_licensing', 'completed'].map((s, i, arr) => {
+                  const steps = ['Pending', 'Docs In', 'Submitted', 'Completed'];
+                  const done = STATUS_STEPS.indexOf(detail.status) > i;
+                  const active = detail.status === s;
+                  return (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <div style={{
+                        flex: 1, textAlign: 'center', padding: '6px 4px',
+                        background: active ? '#3b82f6' : done ? '#dbeafe' : '#f1f3f9',
+                        color: active ? '#fff' : done ? '#1d4ed8' : '#9ba3bf',
+                        fontSize: '11.5px', fontWeight: active ? 600 : 400,
+                        borderRadius: i === 0 ? '6px 0 0 6px' : i === arr.length - 1 ? '0 6px 6px 0' : '0',
+                        borderRight: i < arr.length - 1 ? '1px solid #e8eaf2' : 'none',
+                      }}>
+                        {steps[i]}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div><span className="text-gray-400 text-xs">Vehicle</span>
-              <div className="font-medium">{detailItem.vehicle ? `${detailItem.vehicle.make} ${detailItem.vehicle.model} ${detailItem.vehicle.year}` : '—'}</div>
-              <div className="text-xs text-gray-400 font-mono">{detailItem.vehicle?.vin}</div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              {[
+                { label: 'Application type', value: TYPE_LABELS[detail.app_type] },
+                { label: 'Status', value: <AppStatusBadge status={detail.status} /> },
+                { label: 'Vehicle', value: detail.vehicle ? `${detail.vehicle.make} ${detail.vehicle.model} ${detail.vehicle.year}` : '—' },
+                { label: 'VIN', value: detail.vehicle?.vin || '—', mono: true },
+                { label: 'Reg number', value: detail.vehicle?.reg_number || '—', mono: true },
+                { label: 'Licensing fee paid', value: detail.licensing_fee_paid ? `R ${Number(detail.licensing_fee_paid).toFixed(2)}` : '—' },
+                { label: 'Dept reference', value: detail.licensing_dept_ref || '—', mono: true },
+                { label: 'Created', value: new Date(detail.created_at).toLocaleDateString('en-ZA') },
+                detail.submitted_at && { label: 'Submitted', value: new Date(detail.submitted_at).toLocaleDateString('en-ZA') },
+                detail.completed_at && { label: 'Completed', value: new Date(detail.completed_at).toLocaleDateString('en-ZA') },
+              ].filter(Boolean).map(item => (
+                <div key={item.label}>
+                  <div style={{ fontSize: '11.5px', color: '#9ba3bf', fontWeight: 500, marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{item.label}</div>
+                  <div style={{ fontSize: '14px', color: '#1a1d2e', fontFamily: item.mono ? "'DM Mono', monospace" : 'inherit', fontWeight: item.bold ? 600 : 400 }}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
             </div>
-            {detailItem.licensing_fee_paid && (
-              <div><span className="text-gray-400 text-xs">Licensing fee paid</span>
-                <div className="font-medium">R {Number(detailItem.licensing_fee_paid).toFixed(2)}</div>
-              </div>
-            )}
-            {detailItem.licensing_dept_ref && (
-              <div><span className="text-gray-400 text-xs">Dept reference</span>
-                <div className="font-medium">{detailItem.licensing_dept_ref}</div>
-              </div>
-            )}
-            {detailItem.submitted_at && (
-              <div><span className="text-gray-400 text-xs">Submitted</span>
-                <div>{new Date(detailItem.submitted_at).toLocaleDateString('en-ZA')}</div>
-              </div>
-            )}
-            {detailItem.completed_at && (
-              <div><span className="text-gray-400 text-xs">Completed</span>
-                <div>{new Date(detailItem.completed_at).toLocaleDateString('en-ZA')}</div>
-              </div>
-            )}
-            {detailItem.status !== 'completed' && detailItem.status !== 'cancelled' && (
-              <div className="pt-2 flex justify-end">
-                <Btn onClick={() => advanceStatus(detailItem)}>Advance status</Btn>
+
+            {detail.status !== 'completed' && detail.status !== 'cancelled' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #f0f2f8' }}>
+                <Btn onClick={() => advance(detail)}>
+                  Advance to next status →
+                </Btn>
               </div>
             )}
           </div>
         )}
       </Modal>
-    </div>
+    </PageShell>
   );
 }
