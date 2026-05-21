@@ -1,3 +1,5 @@
+//server.js
+
 'use strict';
 
 const express    = require('express');
@@ -5,7 +7,7 @@ const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 const { connectDB } = require('./config/db');
-require('./models'); // load all models and associations
+require('./models');
 require('dotenv').config();
 
 const app = express();
@@ -13,24 +15,31 @@ const app = express();
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-// Serve uploaded documents statically (private — behind auth in production)
+// Rate limiter applied only to /api/* routes — NOT as a catch-all on /api/
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+
+// Serve uploaded documents statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth',         require('./routes/authRoute'));
-app.use('/api/dealerships',  require('./routes/dealershipsRoute'));
-app.use('/api/customers',    require('./routes/customersRoute'));
-app.use('/api/vehicles',     require('./routes/vehiclesRoute'));
-app.use('/api/applications', require('./routes/applicationsRoute'));
-app.use('/api/documents',    require('./routes/documentsRoute'));
-app.use('/api/invoices',     require('./routes/invoicesRoute'));
-app.use('/api/dashboard',    require('./routes/dashboardRoute'));
+app.use('/api/auth',         apiLimiter, require('./routes/authRoute'));
+app.use('/api/dealerships',  apiLimiter, require('./routes/dealershipsRoute'));
+app.use('/api/customers',    apiLimiter, require('./routes/customersRoute'));
+app.use('/api/vehicles',     apiLimiter, require('./routes/vehiclesRoute'));
+app.use('/api/applications', apiLimiter, require('./routes/applicationsRoute'));
+app.use('/api/documents',    apiLimiter, require('./routes/documentsRoute'));
+app.use('/api/invoices',     apiLimiter, require('./routes/invoicesRoute'));
+app.use('/api/dashboard',    apiLimiter, require('./routes/dashboardRoute'));
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) =>
   res.json({ status: 'ok', time: new Date(), app: 'FleetCore' })
+);
+
+// ── Catch-all for undefined routes ───────────────────────────────────────────
+app.use((req, res) =>
+  res.status(404).json({ message: `Route ${req.method} ${req.path} not found` })
 );
 
 // ── Global error handler ─────────────────────────────────────────────────────
