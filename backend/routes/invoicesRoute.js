@@ -79,7 +79,7 @@ router.patch('/:id/mark-paid', async (req, res) => {
   try {
     const invoice = await Invoice.findByPk(req.params.id);
     if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
-    await invoice.update({ status: 'paid', paid_at: new Date() });
+    await invoice.update({ status: 'paid', paid_at: new Date() }, { validate: false });
     res.json(invoice);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -92,7 +92,7 @@ router.post('/:id/payments', async (req, res) => {
     const payment = await Payment.create({ ...req.body, invoice_id: invoice.id });
     // Check if fully paid
     const totalPaid = await Payment.sum('amount', { where: { invoice_id: invoice.id } });
-    if (totalPaid >= invoice.total) await invoice.update({ status: 'paid', paid_at: new Date() });
+    if (totalPaid >= invoice.total) await invoice.update({ status: 'paid', paid_at: new Date() }, { validate: false });
     res.status(201).json(payment);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });

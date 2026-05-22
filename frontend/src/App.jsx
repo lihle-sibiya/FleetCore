@@ -3,11 +3,10 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Dealerships from './pages/Dealerships';
-import PrivateCustomers from './pages/PrivateCustomers';
+import Companies from './pages/Dealerships';
 import Vehicles from './pages/Vehicles';
-import Applications from './pages/Applications';
 import Invoices from './pages/Invoices';
+import Drivers from './pages/Drivers';
 
 const Protected = ({ children }) => {
   const { user, loading } = useAuth();
@@ -22,11 +21,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
-          <Route path="/dealerships" element={<Protected><Dealerships /></Protected>} />
-          <Route path="/customers" element={<Protected><PrivateCustomers /></Protected>} />
+          <Route path="/companies" element={<Protected><Companies /></Protected>} />
           <Route path="/vehicles" element={<Protected><Vehicles /></Protected>} />
-          <Route path="/applications" element={<Protected><Applications /></Protected>} />
           <Route path="/invoices" element={<Protected><Invoices /></Protected>} />
+          <Route path="/drivers" element={<Protected><Drivers /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

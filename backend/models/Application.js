@@ -57,6 +57,18 @@ const Application = sequelize.define('Application', {
   timestamps: true,
   createdAt:  'created_at',
   updatedAt:  false,
+  validate: {
+    // Exactly one of private_customer_id or dealership_customer_id must be set
+    ownerCheck() {
+      const hasPrivate     = this.private_customer_id     !== null && this.private_customer_id     !== undefined;
+      const hasDealership  = this.dealership_customer_id  !== null && this.dealership_customer_id  !== undefined;
+      if (hasPrivate === hasDealership) {
+        throw new Error(
+          'Application must be linked to either a private customer or a dealership customer, not both and not neither.'
+        );
+      }
+    },
+  },
 });
 
 module.exports = Application;

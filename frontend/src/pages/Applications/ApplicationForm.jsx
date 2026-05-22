@@ -1,50 +1,20 @@
 import React, { useState } from 'react';
 
 const ApplicationForm = () => {
-  // const [formData, setFormData] = useState({
-  //   vehicle_id: '',
-  //   customer_type: 'private', // or 'dealership'
-  //   customer_id: '',
-  //   app_type: 'new_registration',
-  // });
-
   const [formData, setFormData] = useState({
-  vehicle_id: '',
-  customer_type: 'private',
-  private_customer_id: '',
-  dealership_customer_id: '',
-  app_type: 'new_registration',
-  status: 'pending',
-  licensing_fee_paid: '',
-  licensing_dept_ref: '',
-});
+    vehicle_id: '',
+    customer_type: 'private', // or 'dealership'
+    customer_id: '',
+    app_type: 'new_registration',
+  });
 
-  // const handleSubmit = (e) => {
-  //   e.preventDefault();
-  //   // Logic to structure payload: 
-  //   // if private, set private_customer_id
-  //   // if dealership, set dealership_customer_id
-  //   console.log("Submitting:", formData);
-  // };
-
-  const payload = {
-  vehicle_id: Number(formData.vehicle_id),
-  app_type: formData.app_type,
-  status: formData.status,
-  licensing_fee_paid: formData.licensing_fee_paid || null,
-  licensing_dept_ref: formData.licensing_dept_ref || null,
-  private_customer_id:
-    formData.customer_type === 'private'
-      ? Number(formData.private_customer_id)
-      : null,
-  dealership_customer_id:
-    formData.customer_type === 'dealership'
-      ? Number(formData.dealership_customer_id)
-      : null,
-};
-
-await applicationAPI.create(payload);
-
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Logic to structure payload: 
+    // if private, set private_customer_id
+    // if dealership, set dealership_customer_id
+    console.log("Submitting:", formData);
+  };
 
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl mx-auto p-6 bg-white shadow-md">
