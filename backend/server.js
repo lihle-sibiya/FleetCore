@@ -1,12 +1,13 @@
 'use strict';
 
+require('dotenv').config();
 const express    = require('express');
 const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 const { connectDB } = require('./config/db');
 require('./models');
-require('dotenv').config();
+
 
 const app = express();
 
