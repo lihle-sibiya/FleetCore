@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { FileText, Plus, Download, CheckCircle } from 'lucide-react';
-import api from '../utils/api';
-import { useFetch } from '../hooks';
+import api from '../api/api';
+import { useFetch } from '../hooks/hooks';
 import {
   PageHeader, Btn, LoadingSpinner, EmptyState, StatusBadge,
   Modal, FormField, Input, Select
-} from '../components/ui';
+} from '../components/ui/ui';
 
 const fmt = (n) => `R ${Number(n || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`;
 

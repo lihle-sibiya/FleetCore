@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../utils/api';
+import api from '../api/api';
 
 // Generic data fetching hook
 export const useFetch = (url, deps = []) => {

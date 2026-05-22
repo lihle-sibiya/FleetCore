@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Plus, ChevronRight } from 'lucide-react';
-import api from '../utils/api';
-import { useFetch, useDebounce } from '../hooks';
+import api from '../api/api';
+import { useFetch, useDebounce } from '../hooks/hooks';
 import {
   PageHeader, SearchInput, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input
 } from '../components/ui/ui';

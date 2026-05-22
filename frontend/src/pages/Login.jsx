@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api from '../api/api';
 import { Zap } from 'lucide-react';
 
 export default function Login() {
