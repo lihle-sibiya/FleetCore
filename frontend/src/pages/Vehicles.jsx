@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Truck, Plus, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
 import { useFetch } from '../hooks';
-import { PageHeader, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input, Select } from '../components/ui';
+import { PageHeader, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input, Select } from '../components/ui/ui';
 
 const EMPTY_FORM = {
   companyId: '', driverId: '', make: '', model: '', year: '',

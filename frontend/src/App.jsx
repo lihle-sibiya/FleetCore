@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard';
 import Companies from './pages/Dealerships';
 import Vehicles from './pages/Vehicles';
 import Invoices from './pages/Invoices';
-import Drivers from './pages/Drivers';
 
 const Protected = ({ children }) => {
   const { user, loading } = useAuth();

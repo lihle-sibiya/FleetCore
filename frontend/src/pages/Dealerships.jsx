@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { useFetch, useDebounce } from '../hooks';
 import {
   PageHeader, SearchInput, Btn, LoadingSpinner, EmptyState, Modal, FormField, Input
-} from '../components/ui';
+} from '../components/ui/ui';
 
 const EMPTY_FORM = { name: '', registrationNumber: '', vatNumber: '', phone: '', email: '', address: '' };
 
