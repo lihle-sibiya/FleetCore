@@ -95,7 +95,7 @@
 // }
 
 import { useState } from 'react';
-import api from '../utils/api';
+import api from '../api/api';
 import { useFetch, useDebounce } from '../hooks/hooks';
 
 const card = { background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' };

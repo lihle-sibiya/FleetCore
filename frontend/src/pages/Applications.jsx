@@ -54,7 +54,7 @@
 // export default ApplicationList;
 
 import { useState } from 'react';
-import api from '../utils/api';
+import api from '../api/api';
 import { useFetch } from '../hooks/hooks';
 
 const fmt = d => d ? new Date(d).toLocaleDateString('en-ZA') : '—';
