@@ -36,6 +36,20 @@ app.get('/health', (_, res) =>
   res.json({ status: 'ok', time: new Date(), app: 'FleetCore' })
 );
 
+
+// ── Serve React frontend (PRODUCTION BUILD) ──
+const frontendPath = path.join(__dirname, 'dist');
+
+app.use(express.static(frontendPath));
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    return next();
+  }
+
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 // ── Catch-all for undefined routes ───────────────────────────────────────────
 app.use((req, res) =>
   res.status(404).json({ message: `Route ${req.method} ${req.path} not found` })
