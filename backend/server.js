@@ -42,7 +42,11 @@ const frontendPath = path.join(__dirname, 'dist');
 
 app.use(express.static(frontendPath));
 
-app.get('*', (req, res, next) => {
+app.get(/^(?!\/api|\/uploads).*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+app.get(/.*/, (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
     return next();
   }
