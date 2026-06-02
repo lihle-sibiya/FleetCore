@@ -1,7 +1,5 @@
-'use strict';
-
-const { Sequelize } = require('sequelize');
 require('dotenv').config();
+const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize(
   process.env.DB_NAME,
@@ -21,14 +19,11 @@ const sequelize = new Sequelize(
   }
 );
 
-const connectDB = async () => {
+(async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ Aiven MySQL Connected Successfully');
-  } catch (error) {
-    console.error('Aiven MySQL connection failed:', error);
-    process.exit(1);
+    console.log("✅ Aiven connection SUCCESS");
+  } catch (err) {
+    console.error("❌ Connection FAILED:", err);
   }
-};
-
-module.exports = { sequelize, connectDB };
+})();
