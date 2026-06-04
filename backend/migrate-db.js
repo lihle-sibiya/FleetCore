@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
-const SQL_DIR = "C:/fleetcore.sql"; // your folder
+// const SQL_DIR = "C:/fleetcore.sql";
+const SQL_DIR = path.join(__dirname, "../sql"); // relative path to sql folder
 
 async function runMigration() {
   let connection;
